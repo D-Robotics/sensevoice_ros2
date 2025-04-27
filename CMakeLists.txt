@@ -211,12 +211,6 @@ install(
 
 # Install model directories
 install(
-  DIRECTORY model
-  DESTINATION lib/${PROJECT_NAME}/
-)
-
-# Install model directories
-install(
   FILES SenseVoiceGGUF/sense-voice-small-fp16.gguf
   DESTINATION lib/${PROJECT_NAME}/model/
 )

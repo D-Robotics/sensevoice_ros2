@@ -51,7 +51,6 @@ class HBAudioCapture : public rclcpp::Node {
   int Stop();
 
  private:
-  int ParseConfig(std::string config_file);
   int MicphoneGetThread();
   void asr_send_th();
   void AudioDataFunc(char* buffer, int size);
@@ -70,7 +69,7 @@ class HBAudioCapture : public rclcpp::Node {
   int audio_num_ = 0;
   std::string micphone_name_ = "hw:0,0";
   int micphone_rate_ = 16000;
-  int micphone_chn_ = 1;
+  int micphone_chn_ = 2;
   int micphone_buffer_time_ = 0;
   int micphone_nperiods_ = 4;
   int micphone_period_size_ = 512;

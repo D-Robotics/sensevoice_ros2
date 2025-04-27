@@ -15,13 +15,16 @@
 
 using AudioASRFunc = std::function<void(std::string)>;
 
+using AudioDataFunc = std::function<void(char *, int)>;
+using AudioSmartDataFunc = std::function<void(float)>;
+using AudioCmdDataFunc = std::function<void(const char *)>;
+using AudioEventFunc = std::function<void(int)>;
+
+
 // /**
 //  * This the arbitrary data which will be passed to each callback.
 //  * Later on we can for example add operation or tensor name filter from the CLI arg, or a file descriptor to dump the tensor.
 //  */
-// struct callback_data {
-//     std::vector<uint8_t> data;
-// };
 
 // command-line parameters
 struct sense_voice_params {
