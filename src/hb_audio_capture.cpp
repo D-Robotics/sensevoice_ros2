@@ -29,12 +29,11 @@ HBAudioCapture::HBAudioCapture(const std::string &node_name,
   
   std::string tros_distro
       = std::string(std::getenv("TROS_DISTRO")? std::getenv("TROS_DISTRO") : "");
-  //asr_model_path_ = "/opt/tros/" + tros_distro + "/lib/sensevoice_ros2/model/";
-  asr_model_path_ = "./install/lib/sensevoice_ros2/model/";
-  //cmd_word_path_ = "/opt/tros/" + tros_distro + "/lib/sensevoice_ros2/config/cmd_word.json";
-  cmd_word_path_ = "./install/lib/sensevoice_ros2/config/cmd_word.json";
+  asr_model_path_ = "/opt/tros/" + tros_distro + "/lib/sensevoice_ros2/model/";
+  //asr_model_path_ = "./install/lib/sensevoice_ros2/model/";
+  cmd_word_path_ = "/opt/tros/" + tros_distro + "/lib/sensevoice_ros2/config/cmd_word.json";
+  //cmd_word_path_ = "./install/lib/sensevoice_ros2/config/cmd_word.json";
 
-  this->declare_parameter<std::string>("config_path", config_path_);
   this->declare_parameter<std::string>("micphone_name",
                                        micphone_name_);
   this->declare_parameter<std::string>("audio_pub_topic_name",
@@ -46,7 +45,6 @@ HBAudioCapture::HBAudioCapture(const std::string &node_name,
   this->declare_parameter<int>("push_wakeup",
                                        push_wakeup_);
 
-  this->get_parameter<std::string>("config_path", config_path_);
   this->get_parameter<std::string>("micphone_name",
                                    micphone_name_);
   this->get_parameter<std::string>("audio_pub_topic_name",
@@ -61,7 +59,6 @@ HBAudioCapture::HBAudioCapture(const std::string &node_name,
   asr_model_path_ += asr_model_;
   std::stringstream ss;
   ss << "Parameter:"
-     << "\n config_path: " << config_path_
      << "\n micphone_name: " << micphone_name_
      << "\n audio_pub_topic_name: " << audio_pub_topic_name_
      << "\n asr_pub_topic_name: " << asr_pub_topic_name_
@@ -73,7 +70,7 @@ HBAudioCapture::HBAudioCapture(const std::string &node_name,
 HBAudioCapture::~HBAudioCapture() { DeInit(); }
 
 int HBAudioCapture::Init() {
-
+  v_cmd_word_ = std::make_shared<std::vector<std::string>>();
   std::ifstream cmd_word(cmd_word_path_);
   if (cmd_word.is_open()) {
     Json::Value root;
@@ -82,7 +79,7 @@ int HBAudioCapture::Init() {
       const Json::Value& cmdWords = root["cmd_word"];
       for (const auto& word : cmdWords) {
         std::cout << "命令词: " << word.asString() << std::endl;
-        v_cmd_word_.push_back(word.asString());
+        v_cmd_word_->push_back(word.asString());
       }
     }
     cmd_word.close();
@@ -112,8 +109,9 @@ int HBAudioCapture::Init() {
 
   RCLCPP_WARN_STREAM(rclcpp::get_logger("sensevoice_ros2"),
     "asr_model_path_ is [" << asr_model_path_ << "]");
-   speech_engine::Instance()->Init(asr_model_path_,
-       std::bind(&HBAudioCapture::AudioASRFunc, this, std::placeholders::_1));
+   speech_engine::Instance()->Init(asr_model_path_, v_cmd_word_,
+       std::bind(&HBAudioCapture::AudioASRFunc, this, std::placeholders::_1),
+       std::bind(&HBAudioCapture::AudioCmdDataFunc, this, std::placeholders::_1));
 
   RCLCPP_WARN(rclcpp::get_logger("sensevoice_ros2"), "init success");
   // system("rm ./*.pcm -rf");
@@ -121,6 +119,8 @@ int HBAudioCapture::Init() {
     audio_infile_.open("./audio_in.pcm",
                        std::ios::app | std::ios::out | std::ios::binary);
   }
+  msg_publisher_ = this->create_publisher<audio_msg::msg::SmartAudioData>(
+      audio_pub_topic_name_, 10);
   asr_msg_publisher_ = this->create_publisher<std_msgs::msg::String>(asr_pub_topic_name_, 10);
   is_init_ = true;
   return 0;
@@ -188,13 +188,7 @@ int HBAudioCapture::MicphoneGetThread() {
     RCLCPP_DEBUG(rclcpp::get_logger("sensevoice_ros2"), "capture audio buffer_size:%d",
                  buffer_size);
     audio_num_++;
-    // time_stamp_ =
-    //     std::chrono::duration_cast<std::chrono::microseconds>(
-    //         std::chrono::high_resolution_clock::now().time_since_epoch())
-    //         .count();
 
-
-#if 1
     int data_audio_size = buffer_size / 2 / 2;
     auto vec_ptr = std::make_shared<std::vector<double>>();
     int16_t *src_ptr = (int16_t *)buffer;
@@ -205,56 +199,17 @@ int HBAudioCapture::MicphoneGetThread() {
     if (save_audio_ && audio_infile_.is_open()) {
       audio_infile_.write(buffer, buffer_size);
     }
-#else
-    int data_audio_size = buffer_size ;
-    auto vec_ptr = std::make_shared<std::vector<double>>();
-    int8_t *src_ptr = (int8_t *)buffer;
-    for (int i = 0; i < data_audio_size; i++) {
-      vec_ptr->push_back((double)(src_ptr[i]));
-    }
-    speech_engine::Instance()->send_data(vec_ptr);
-    if (save_audio_ && audio_infile_.is_open()) {
-      audio_infile_.write(buffer, buffer_size);
-    }
-#endif
   }
   RCLCPP_WARN(rclcpp::get_logger("sensevoice_ros2"), "stop capture audio");
   delete[] buffer;
   return 0;
 }
 
-void HBAudioCapture::AudioDataFunc(char *buffer, int size) {
-  RCLCPP_DEBUG(rclcpp::get_logger("sensevoice_ros2"), "pub audio data, size:%d", size);
-  audio_msg::msg::SmartAudioData::UniquePtr frame(
-      new audio_msg::msg::SmartAudioData());
-  frame->frame_type.value = frame->frame_type.SMART_AUDIO_TYPE_VOIP;
-  frame->data.resize(size);
-  memcpy(&frame->data[0], buffer, size);
-  if (save_audio_ && audio_sdk_.is_open()) {
-   audio_sdk_.write(buffer,size);
-  }
-  msg_publisher_->publish(std::move(frame));
-}
-
-void HBAudioCapture::AudioSmartDataFunc(float theta) {
-  audio_msg::msg::SmartAudioData::UniquePtr frame(new audio_msg::msg::SmartAudioData());
-  frame->frame_type.value = frame->frame_type.SMART_AUDIO_TYPE_DOA;
-  frame->doa_theta = theta;
-  msg_publisher_->publish(std::move(frame));
-}
-
-void HBAudioCapture::AudioCmdDataFunc(const char *cmd_word) {
-  RCLCPP_WARN(rclcpp::get_logger("sensevoice_ros2"), "recv cmd word:%s", cmd_word);
+void HBAudioCapture::AudioCmdDataFunc(std::string cmd_word) {
+  RCLCPP_WARN(rclcpp::get_logger("sensevoice_ros2"), "recv cmd word:%s", cmd_word.c_str());
   audio_msg::msg::SmartAudioData::UniquePtr frame(new audio_msg::msg::SmartAudioData());
   frame->frame_type.value = frame->frame_type.SMART_AUDIO_TYPE_CMD_WORD;
   frame->cmd_word = cmd_word;
-  msg_publisher_->publish(std::move(frame));
-}
-
-void HBAudioCapture::AudioEventFunc(int event) {
-  RCLCPP_WARN(rclcpp::get_logger("sensevoice_ros2"), "recv event:%d", event);
-  audio_msg::msg::SmartAudioData::UniquePtr frame(new audio_msg::msg::SmartAudioData());
-  frame->frame_type.value = frame->frame_type.SMART_AUDIO_TYPE_EVENT;
   msg_publisher_->publish(std::move(frame));
 }
 
@@ -289,19 +244,6 @@ void HBAudioCapture::AudioASRFunc(std::string asr) {
       }
     }
   }
-}
-
-void HBAudioCapture::AudioASRDataFunc(char *buffer, int size) {
-  RCLCPP_DEBUG(rclcpp::get_logger("sensevoice_ros2"), "pub asr audio data, size:%d", size);
-  audio_msg::msg::SmartAudioData::UniquePtr frame(
-      new audio_msg::msg::SmartAudioData());
-  frame->frame_type.value = frame->frame_type.SMART_AUDIO_TYPE_ASR_DATA;
-  frame->data.resize(size);
-  memcpy(&frame->data[0], buffer, size);
-  if (save_audio_ && audio_sdk_.is_open()) {
-   audio_sdk_.write(buffer,size);
-  }
-  msg_publisher_->publish(std::move(frame));
 }
 
 }  // namespace audio

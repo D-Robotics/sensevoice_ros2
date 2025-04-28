@@ -14,11 +14,7 @@
 #include "silero-vad.h"
 
 using AudioASRFunc = std::function<void(std::string)>;
-
-using AudioDataFunc = std::function<void(char *, int)>;
-using AudioSmartDataFunc = std::function<void(float)>;
-using AudioCmdDataFunc = std::function<void(const char *)>;
-using AudioEventFunc = std::function<void(int)>;
+using AudioCmdDataFunc = std::function<void(std::string)>;
 
 
 // /**
@@ -103,15 +99,14 @@ class speech_engine {
     return engine;
   }
   ~speech_engine(){}
-  int Init(const std::string &cfg_path, AudioASRFunc asr_func);
+  int Init(const std::string &cfg_path, std::shared_ptr<std::vector<std::string>> v_cmd_word,
+           AudioASRFunc asr_func, AudioCmdDataFunc cmd_func);
   int DeInit();
   int Start();
   int Stop();
 
-  void send_data(std::shared_ptr<float> data, size_t size);
   void send_data(std::shared_ptr<std::vector<double>> data);
   void process(void);
-  void get_token(void);
 
  private:
   speech_engine(){}
@@ -141,6 +136,8 @@ class speech_engine {
   bool asr_final = false;
   std::mutex web_mutex;
   AudioASRFunc audio_asr_cb_ = nullptr;
+  AudioASRFunc audio_cmd_cb_ = nullptr;
+  std::shared_ptr<std::vector<std::string>> v_cmd_word_;
 
   std::chrono::system_clock::time_point vad_start;
   std::chrono::system_clock::time_point vad_pre;

@@ -21,9 +21,9 @@ from launch_ros.actions import Node
 def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument(
-            'audio_config_path',
-            default_value='./config',
-            description='hobot audio config path'),
+            'micphone_name',
+            default_value='plughw:0,0',
+            description='audio capture id'),
         DeclareLaunchArgument(
             'asr_pub_topic_name',
             default_value='/llamacpp_prompt',
@@ -38,7 +38,7 @@ def generate_launch_description():
             executable='hobot_asr',
             output='screen',
             parameters=[
-                {"config_path": LaunchConfiguration('audio_config_path')},
+                {"micphone_name": LaunchConfiguration('micphone_name')},
                 {"asr_model": LaunchConfiguration('audio_asr_model')},
                 {"asr_pub_topic_name": LaunchConfiguration(
                     'asr_pub_topic_name')}

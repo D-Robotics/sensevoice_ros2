@@ -156,8 +156,11 @@ void sense_voice_free(struct sense_voice_context * ctx) {
 }
 
 
-int speech_engine::Init(const std::string &cfg_path, AudioASRFunc asr_func) {
+int speech_engine::Init(const std::string &cfg_path, std::shared_ptr<std::vector<std::string>> v_cmd_word,
+                        AudioASRFunc asr_func, AudioCmdDataFunc cmd_func) {
+  v_cmd_word_ = v_cmd_word;
   audio_asr_cb_ = asr_func;
+  audio_cmd_cb_ = cmd_func;
   params.model = cfg_path;
   vad_pad.resize(64, 0.0f);
   vad_mute.clear();
@@ -244,48 +247,6 @@ int speech_engine::Stop() {
   return 0;
 }
 
-
-void speech_engine::send_data(std::shared_ptr<float> data, size_t size) {
- // std::lock_guard<std::mutex> lock(mutex);
-
-  //std::vector<float> chunk(CONTEXT_SIZE + SENSE_VOICE_VAD_CHUNK_PAD_SIZE, 0);
-  std::vector<float> chunk;
-  chunk.resize(2 * SENSE_VOICE_VAD_CHUNK_PAD_SIZE + size);
-
-  memcpy((char *)chunk.data(), (char *)vad_pad.data(), SENSE_VOICE_VAD_CHUNK_PAD_SIZE * sizeof(float));
-  for (int i = 0; i < size; i++) {
-    //chunk[i + SENSE_VOICE_VAD_CHUNK_PAD_SIZE] = data.get()[i] / 32768;
-    chunk[i + SENSE_VOICE_VAD_CHUNK_PAD_SIZE] = data.get()[i] / 256;
-  }
-  int context_size = SENSE_VOICE_VAD_CHUNK_PAD_SIZE + size;
-  for (int j = context_size; j < chunk.size(); j++) {
-    chunk[j] = chunk[2 * context_size - j - 2];
-  }
-  memcpy((char *)vad_pad.data(), (char *)(chunk.data() + (context_size - SENSE_VOICE_VAD_CHUNK_PAD_SIZE)), SENSE_VOICE_VAD_CHUNK_PAD_SIZE * sizeof(float));
-  float speech_prob = 0;
-  silero_vad_encode_internal(*ctx, *ctx->state, chunk, params.n_threads, speech_prob);
-  std::cout << "speech_prob:" << speech_prob << std::endl;
-  if (speech_prob >= params.threshold) {
-      std::cout << "send_data--------enable" << std::endl;
-      //if (temp_end) temp_end = 0;
-      //if (next_start < prev_end) next_start = i;
-
-    // std::lock_guard<std::mutex> lock(mutex);
-    // if (process_queue.size() >= kMaxQueueSize) {
-    //   process_queue.pop();
-    // }
-    // process_queue.push(std::make_pair(data, size));
-    // cv.notify_one();
-
-  } else {
-    std::cout << "send_data--------disable" << std::endl;
-  }
-  if ((speech_prob >= params.threshold) && (!triggered)) {
-
-  }
-  return;
-}
-
 void speech_engine::send_data(std::shared_ptr<std::vector<double>> data) {
   if (data->size() == 0) return;
   int size = data->size();
@@ -303,75 +264,6 @@ void speech_engine::send_data(std::shared_ptr<std::vector<double>> data) {
 
   float speech_prob = 0;
   silero_vad_encode_internal(*ctx, *ctx->state, chunk, params.n_threads, speech_prob);
-#if 0
-  if (speech_prob >= params.threshold) {
-    //std::cout << "send_data--------11111111" << std::endl;
-    //std::cout << "speech_prob:" << speech_prob << std::endl;
-    if (!triggered) {
-      vad_send = vad_start = std::chrono::system_clock::now();
-      triggered = 1;
-      //std::cout << "send_data--------enable" << std::endl;
-    }
-    if (vad_data_ptr == nullptr) {
-      vad_data_ptr = std::make_shared<std::vector<double>>();
-    }
-    if (vad_mute.size() > 0) {
-      vad_data_ptr->insert(vad_data_ptr->end(),  std::make_move_iterator(vad_mute.begin()), std::make_move_iterator(vad_mute.end()));
-      vad_mute.clear();
-    }
-    vad_data_ptr->insert(vad_data_ptr->end(),  std::make_move_iterator(data->begin()), std::make_move_iterator(data->end()));
-
-    vad_pre = std::chrono::system_clock::now();
-    auto interval = std::chrono::duration_cast<std::chrono::milliseconds>(vad_pre - vad_send).count();
-    if (interval >= params.max_speech_duration_ms) {
-      std::lock_guard<std::mutex> lock(mutex);
-      if (process_queue.size() >= kMaxQueueSize) {
-        process_queue.pop();
-      }
-      process_queue.push(std::make_pair(vad_data_ptr, 1));
-      cv.notify_one();
-      vad_data_ptr = nullptr;
-      vad_send = vad_pre;
-    }
-
-  } else {
-    vad_stop = std::chrono::system_clock::now();
-    if (triggered) {
-      auto interval = std::chrono::duration_cast<std::chrono::milliseconds>(vad_stop - vad_pre).count();
-      auto interval1 = std::chrono::duration_cast<std::chrono::milliseconds>(vad_stop - vad_send).count();
-      auto interval2 = std::chrono::duration_cast<std::chrono::milliseconds>(vad_stop - vad_start).count();
-      if (interval >= 98) {
-        //std::cout << "send_data--------disable" << std::endl;
-        if ((interval2 > params.min_speech_duration_ms) && (vad_data_ptr)) {
-          std::lock_guard<std::mutex> lock(mutex);
-          if (process_queue.size() >= kMaxQueueSize) {
-            process_queue.pop();
-          }
-          process_queue.push(std::make_pair(vad_data_ptr, 1));
-          cv.notify_one();
-        }
-        vad_data_ptr = nullptr;
-        vad_mute.clear();
-        triggered = 0;
-        asr_final = true;
-      // } else if ((interval1 > params.min_speech_duration_ms) && (vad_data_ptr)) {
-      //     std::lock_guard<std::mutex> lock(mutex);
-      //     if (process_queue.size() >= kMaxQueueSize) {
-      //       process_queue.pop();
-      //     }
-      //     process_queue.push(std::make_pair(vad_data_ptr, 1));
-      //     cv.notify_one();
-      //     vad_data_ptr = nullptr;
-      //     vad_send = vad_stop;
-      //     vad_mute.insert(vad_mute.end(),  std::make_move_iterator(data->begin()), std::make_move_iterator(data->end()));
-      } else {
-        vad_mute.insert(vad_mute.end(),  std::make_move_iterator(data->begin()), std::make_move_iterator(data->end()));
-      }
-    } else {
-
-    }
-  }
-#else
   if (triggered) {
     if (speech_prob < params.neg_threshold) {
       vad_stop = std::chrono::system_clock::now();
@@ -445,61 +337,9 @@ void speech_engine::send_data(std::shared_ptr<std::vector<double>> data) {
       }
     }
   }
-#endif
   return;
 }
 
-#if 0
-void speech_engine::process(void) {
-  try {
-    while (true) {
-      {
-        std::unique_lock<std::mutex> lock(mutex);
-        cv.wait(lock, [this] { return !process_queue.empty() || stop_flag; });
-      }
-      if (stop_flag) {
-        break;
-      }
-      while (!process_queue.empty()) {
-        auto data = process_queue.front().first;
-        auto end_flag = process_queue.front().second;
-        process_queue.pop();
-        //std::vector<double> speech_segment;
-        auto start_time = std::chrono::system_clock::now();
-        if (sense_voice_full_parallel(ctx, wparams, *data, data->size(), params.n_processors) != 0) {
-            fprintf(stderr, "failed to process audio\n");
-            continue;
-        }
-        auto end_time = std::chrono::system_clock::now();
-        auto interval = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
-        std::cout << "cost time :" << interval << " ms" << std::endl;
-
-        if (end_flag) {
-          std::string result_str;
-          for (size_t i = 4; i < ctx->state->ids.size(); i++) {
-            int id = ctx->state->ids[i];
-            if (i > 0 && ctx->state->ids[i - 1] == ctx->state->ids[i])
-                continue;
-            if (id) {
-              //printf("%s\n", ctx->vocab.id_to_token[id].c_str());
-              result_str += ctx->vocab.id_to_token[id];
-            }
-                
-          }
-          if (audio_asr_cb_) {
-            audio_asr_cb_(result_str); //todo
-          }
-          std::cout << "result_str:" << result_str << std::endl;
-        }
-      }
-    }
-  } catch(...) {
-    std::cout << "exception speech_engine::process"<<std::endl;
-  }
-  return;
-}
-
-#else
 void speech_engine::process(void) {
   try {
     std::string result_str;
@@ -535,6 +375,14 @@ void speech_engine::process(void) {
               tmp_str += ctx->vocab.id_to_token[id];
             }
           }
+          for (auto& cmd : *v_cmd_word_) {
+            if (tmp_str == cmd) {
+              audio_cmd_cb_(tmp_str); //todo
+              break;
+            }
+
+          }
+          
           size_t pos = tmp_str.find("你好", 0);
           if (pos != std::string::npos) {
             if (audio_asr_cb_) {
@@ -559,18 +407,3 @@ void speech_engine::process(void) {
   }
   return;
 }
-#endif
-
-void speech_engine::get_token(void) {
-  try {
-    sense_voice_print_output(ctx, true, params.use_itn, false);
-    std::string result_str;
-    if (audio_asr_cb_) {
-      audio_asr_cb_(result_str); //todo
-    }
-  } catch(...) {
-    std::cout << "exception speech_engine::process"<<std::endl;
-  }
-  return;
-}
-

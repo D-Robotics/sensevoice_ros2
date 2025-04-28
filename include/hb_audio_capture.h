@@ -53,12 +53,9 @@ class HBAudioCapture : public rclcpp::Node {
  private:
   int MicphoneGetThread();
   void asr_send_th();
-  void AudioDataFunc(char* buffer, int size);
-  void AudioSmartDataFunc(float theta);
-  void AudioCmdDataFunc(const char* cmd_word);
-  void AudioEventFunc(int event);
+
+  void AudioCmdDataFunc(std::string cmd_word);
   void AudioASRFunc(std::string asr);
-  void AudioASRDataFunc(char* buffer, int size);
 
  private:
   int micphone_enable_ = 1;
@@ -67,7 +64,7 @@ class HBAudioCapture : public rclcpp::Node {
   bool exit_ = true;
   bool is_init_ = false;
   int audio_num_ = 0;
-  std::string micphone_name_ = "hw:0,0";
+  std::string micphone_name_ = "plughw:0,0";
   int micphone_rate_ = 16000;
   int micphone_chn_ = 2;
   int micphone_buffer_time_ = 0;
@@ -77,7 +74,7 @@ class HBAudioCapture : public rclcpp::Node {
   int mic_type_ = 0;
   int asr_output_mode_ = 0;
   int asr_output_channel_ = 3;
-  int push_wakeup_ = 1;
+  int push_wakeup_ = 0;
 
   std::string wakeup_name_ = "你好";
   std::string wakeup_name_1_ = "你好,";
@@ -90,7 +87,7 @@ class HBAudioCapture : public rclcpp::Node {
   std::ofstream audio_infile_;
   std::ofstream audio_sdk_;
   bool save_audio_ = false;
-  std::vector<std::string> v_cmd_word_;
+  std::shared_ptr<std::vector<std::string>> v_cmd_word_;
   std::string cmd_word_path_ = "./config/cmd_word.json";
 
   rclcpp::Publisher<audio_msg::msg::SmartAudioData>::SharedPtr msg_publisher_;
