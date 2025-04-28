@@ -34,8 +34,8 @@ def generate_launch_description():
             description='hobot audio asr model'),
         # 启动音频采集pkg
         Node(
-            package='hobot_asr',
-            executable='hobot_asr',
+            package='sensevoice_ros2',
+            executable='sensevoice_ros2',
             output='screen',
             parameters=[
                 {"micphone_name": LaunchConfiguration('micphone_name')},
