@@ -41,40 +41,19 @@ find_package(std_msgs REQUIRED)
 find_package(jsoncpp REQUIRED)
 #find_package(OpenSSL REQUIRED)
 
-
-
-set(PREFIX_PATH x3)
-
-if(PLATFORM_X3)
-  message("build platform X3")
-  add_definitions(-DPLATFORM_X3)
-  set(PREFIX_PATH x3)
-elseif(PLATFORM_X5)
-  message("build platform X5")
-  add_definitions(-DPLATFORM_X5)
-  set(PREFIX_PATH x5)
-
-  if(NOT EXISTS "${CMAKE_SOURCE_DIR}/SenseVoiceGGUF")
-    execute_process(
-        COMMAND git lfs install
-        COMMAND git clone https://www.modelscope.cn/lovemefan/SenseVoiceGGUF.git SenseVoiceGGUF
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        OUTPUT_QUIET  # 静默输出（避免日志冗余）:ml-citation{ref="2,8" data="citationList"}
-        ERROR_VARIABLE git_clone_error  # 捕获错误信息:ml-citation{ref="4,8" data="citationList"}
-        RESULT_VARIABLE git_clone_result  # 获取执行结果（0表示成功）:ml-citation{ref="4,8" data="citationList"}
-    )
-    if(NOT git_clone_result EQUAL 0)
-        message(FATAL_ERROR "Git clone failed: ${git_clone_error}")  # 输出详细错误:ml-citation{ref="4,8" data="citationList"}
-    endif()
+if(NOT EXISTS "${CMAKE_SOURCE_DIR}/SenseVoiceGGUF")
+  execute_process(
+      COMMAND git lfs install
+      COMMAND git clone https://www.modelscope.cn/lovemefan/SenseVoiceGGUF.git SenseVoiceGGUF
+      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+      OUTPUT_QUIET  # 静默输出（避免日志冗余）:ml-citation{ref="2,8" data="citationList"}
+      ERROR_VARIABLE git_clone_error  # 捕获错误信息:ml-citation{ref="4,8" data="citationList"}
+      RESULT_VARIABLE git_clone_result  # 获取执行结果（0表示成功）:ml-citation{ref="4,8" data="citationList"}
+  )
+  if(NOT git_clone_result EQUAL 0)
+      message(FATAL_ERROR "Git clone failed: ${git_clone_error}")  # 输出详细错误:ml-citation{ref="4,8" data="citationList"}
   endif()
-
-else()
-  message("invalid platform, build platform X3 default")
-  add_definitions(-DPLATFORM_X5)
-  set(PREFIX_PATH x5)
 endif()
-
-#list(APPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/include/sensevoice/lib/cmake/ggml")
 
 
 
@@ -170,15 +149,7 @@ add_executable(${PROJECT_NAME}
 
 #set(BASE_LIBRARIES pthread dl rt m)
 set(BASE_LIBRARIES pthread)
-if(PLATFORM_X3)
-  set(X3_HAPI_LIB hbmedia cam isp vio multimedia iar)
-  set(X3_AUDIO_LIB asound cnn_intf ion hrsc lvcsr modelvad)
-elseif(PLATFORM_X5)
-  set(X3_AUDIO_LIB asound sense-voice-core ggml-cpu ggml-base ggml jsoncpp)
-else()
-  set(X3_HAPI_LIB hbmedia cam isp vio multimedia iar)
-  set(X3_AUDIO_LIB asound cnn_intf ion hrsc lvcsr modelvad)
-endif()
+set(X3_AUDIO_LIB asound sense-voice-core ggml-cpu ggml-base ggml jsoncpp)
 
 target_link_libraries(${PROJECT_NAME}
    ${X3_AUDIO_LIB} ${X3_HAPI_LIB} ${BASE_LIBRARIES}
