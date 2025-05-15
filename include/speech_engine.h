@@ -99,8 +99,9 @@ class speech_engine {
     return engine;
   }
   ~speech_engine(){}
-  int Init(const std::string &cfg_path, std::shared_ptr<std::vector<std::string>> v_cmd_word,
-           AudioASRFunc asr_func, AudioCmdDataFunc cmd_func);
+  int Init(const std::string &cfg_path, const std::string &wakeup_name,
+          std::shared_ptr<std::vector<std::string>> v_cmd_word,
+          AudioASRFunc asr_func, AudioCmdDataFunc cmd_func);
   int DeInit();
   int Start();
   int Stop();
@@ -135,6 +136,7 @@ class speech_engine {
   bool enable_asr = true;
   bool asr_final = false;
   std::mutex web_mutex;
+  std::string wakeup_name_;
   AudioASRFunc audio_asr_cb_ = nullptr;
   AudioASRFunc audio_cmd_cb_ = nullptr;
   std::shared_ptr<std::vector<std::string>> v_cmd_word_;

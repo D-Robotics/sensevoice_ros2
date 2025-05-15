@@ -32,6 +32,14 @@ def generate_launch_description():
             'audio_asr_model',
             default_value='sense-voice-small-fp16.gguf',
             description='hobot audio asr model'),
+        DeclareLaunchArgument(
+            'push_wakeup',
+            default_value='0',
+            description='push wakeup_name in asr before'),
+        DeclareLaunchArgument(
+            'wakeup_name',
+            default_value='你好',
+            description='wakeup name'),
         # 启动音频采集pkg
         Node(
             package='sensevoice_ros2',
@@ -40,6 +48,8 @@ def generate_launch_description():
             parameters=[
                 {"micphone_name": LaunchConfiguration('micphone_name')},
                 {"asr_model": LaunchConfiguration('audio_asr_model')},
+                {"push_wakeup": LaunchConfiguration('push_wakeup')},
+                {"wakeup_name": LaunchConfiguration('wakeup_name')},
                 {"asr_pub_topic_name": LaunchConfiguration(
                     'asr_pub_topic_name')}
             ],
