@@ -156,12 +156,14 @@ void sense_voice_free(struct sense_voice_context * ctx) {
 }
 
 
-int speech_engine::Init(const std::string &cfg_path, std::shared_ptr<std::vector<std::string>> v_cmd_word,
+int speech_engine::Init(const std::string &cfg_path, const std::string &wakeup_name,
+                        std::shared_ptr<std::vector<std::string>> v_cmd_word,
                         AudioASRFunc asr_func, AudioCmdDataFunc cmd_func) {
   v_cmd_word_ = v_cmd_word;
   audio_asr_cb_ = asr_func;
   audio_cmd_cb_ = cmd_func;
   params.model = cfg_path;
+  wakeup_name_ = wakeup_name;
   vad_pad.resize(64, 0.0f);
   vad_mute.clear();
   struct sense_voice_context_params cparams;
@@ -383,10 +385,10 @@ void speech_engine::process(void) {
 
           }
           
-          size_t pos = tmp_str.find("你好", 0);
+          size_t pos = tmp_str.find(wakeup_name_, 0);
           if (pos != std::string::npos) {
             if (audio_asr_cb_) {
-              audio_asr_cb_("你好"); //todo
+              audio_asr_cb_(wakeup_name_); //todo
             }
           }
           result_str += tmp_str + ",";
