@@ -46,6 +46,8 @@ HBAudioCapture::HBAudioCapture(const std::string &node_name,
                                        push_wakeup_);
   this->declare_parameter<std::string>("wakeup_name",
                                        wakeup_name_);
+  this->declare_parameter<std::string>("language",
+                                       language_);
 
   this->get_parameter<std::string>("micphone_name",
                                    micphone_name_);
@@ -59,6 +61,8 @@ HBAudioCapture::HBAudioCapture(const std::string &node_name,
                                    push_wakeup_);
   this->get_parameter<std::string>("wakeup_name",
                                    wakeup_name_);
+  this->get_parameter<std::string>("language",
+                                   language_);
   
   if (wakeup_name_.length() > 0) {
     wakeup_name_1_ = wakeup_name_ + ",";
@@ -70,7 +74,8 @@ HBAudioCapture::HBAudioCapture(const std::string &node_name,
      << "\n micphone_name: " << micphone_name_
      << "\n audio_pub_topic_name: " << audio_pub_topic_name_
      << "\n asr_pub_topic_name: " << asr_pub_topic_name_
-     << "\n asr_model_path_: " << asr_model_path_
+     << "\n asr_model_path: " << asr_model_path_
+     << "\n language: " << language_
      << "\n push_wakeup: " << push_wakeup_;
   RCLCPP_WARN(rclcpp::get_logger("sensevoice_ros2"), "%s", ss.str().c_str());
 }
@@ -115,9 +120,7 @@ int HBAudioCapture::Init() {
     return -1;
   }
 
-  RCLCPP_WARN_STREAM(rclcpp::get_logger("sensevoice_ros2"),
-    "asr_model_path_ is [" << asr_model_path_ << "]");
-   speech_engine::Instance()->Init(asr_model_path_, wakeup_name_, v_cmd_word_,
+   speech_engine::Instance()->Init(asr_model_path_, wakeup_name_, language_, v_cmd_word_,
        std::bind(&HBAudioCapture::AudioASRFunc, this, std::placeholders::_1),
        std::bind(&HBAudioCapture::AudioCmdDataFunc, this, std::placeholders::_1));
 

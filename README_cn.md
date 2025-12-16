@@ -2,7 +2,7 @@
 
 # 功能介绍
 
-智能语音算法采用SenseVoiceGGUF的算法，订阅音频数据后送给sensevoicegguf模型处理，然后发布**命令词识别**、**语音ASR识别结果**等消息。智能语音功能的实现对应于TogetheROS.Bot的**sensevoice_ros2** package，适用于RDK配套的麦克风阵列。
+智能语音算法采用[SenseVoice2](https://github.com/lovemefan/SenseVoice.cpp)的算法，订阅音频数据后送给[sensevoicegguf模型](https://huggingface.co/lovemefan/sense-voice-gguf/tree/main)处理，然后发布**命令词识别**、**语音ASR识别结果**等消息。智能语音功能的实现对应于TogetheROS.Bot的**sensevoice_ros2** package，适用于RDK配套的麦克风阵列。
 
 应用场景：智能语音算法能够识别音频的语音内容解读为对应指令或转化为文字，可实现语音控制以及语音翻译等功能，主要应用于智能家居、智能座舱、智能穿戴设备等领域。
 
@@ -12,14 +12,14 @@
 
 在体验之前，需要具备以下基本条件：
 
-- RDK已烧录好Ubuntu 20.04系统镜像
+- RDK已烧录好Ubuntu 20.04/Ubuntu 22.04/Ubuntu 24.04 系统镜像
 - 音频板正确连接到RDK X3，RDK X5的3.5mm的耳麦接口。
-- 或者USB音响正确连接到RDK X3，RDK X5的usb接口。
+- 或者USB音响正确连接到RDK X3，RDK X5，RDK S100/S100P，RDK S600 的usb接口。
 
 
 ## 安装功能包
 
-启动RDK X3，DK X5后，通过终端SSH或者VNC连接机器人，复制如下命令在RDK的系统上运行，完成相关Node的安装。
+启动 RDK 后，通过终端SSH或者VNC连接机器人，复制如下命令在RDK的系统上运行，完成相关Node的安装。
 
 tros humble 版本
 ```bash
@@ -55,7 +55,7 @@ RDK板端运行sensevoice_ros2 package：
     source /opt/tros/humble/setup.bash
 
     #启动launch文件
-    ros2 launch sensevoice_ros2 sensevoice_ros2.launch.py micphone_name:="plughw:0,0"
+    ros2 launch sensevoice_ros2 sensevoice_ros2.launch.py audio_asr_model:="sense-voice-small-fp16.gguf" language:="zh" micphone_name:="plughw:0,0"
     ```
 
 2. 结果分析
@@ -104,19 +104,19 @@ RDK板端运行sensevoice_ros2 package：
     ```
 
 
-    hobot_audio默认发布的智能语音消息话题名为：*/audio_smart*，在另一个终端执行使用`ros2 topic list`命令可以查询到此topic信息：
+    sensevoice_ros2默认发布的智能语音消息话题名为：*/audio_smart*，在另一个终端执行使用`ros2 topic list`命令可以查询到此topic信息：
 
     ```bash
     $ ros2 topic list
     /audio_smart
     ```
 
-    若开启发布ASR结果，发布消息话题为：*/audio_asr*，`ros2 topic list`结果为：
+    若开启发布ASR结果，发布消息话题为：*/asr_text*，`ros2 topic list`结果为：
 
     ```bash
     $ ros2 topic list
     /audio_smart
-    /audio_asr
+    /asr_text
     ```
 
 # 接口说明
@@ -126,7 +126,7 @@ RDK板端运行sensevoice_ros2 package：
 | 名称         | 消息类型                                                                                                               | 说明                               |
 | ------------ | ---------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
 | /audio_smart | [audio_msg/msg/SmartAudioData](https://github.com/D-Robotics/hobot_msgs/blob/develop/audio_msg/msg/SmartAudioData.msg) | 发布智能语音处理后的数据和智能结果 |
-| /audio_asr   | std_msgs/msg/String                                                                                                    | 发布ASR识别结果                    |
+| /asr_text   | std_msgs/msg/String  | 发布ASR识别结果                    |
 
 ## 参数
 
@@ -134,8 +134,11 @@ RDK板端运行sensevoice_ros2 package：
 | -------------------- | ----------- | ------------------ | -------- | ---------------- | ------------ |
 | micphone_name          | std::string | 语音采集设备       | 否       | 根据实际情况配置 | plughw:0,0     |
 | audio_pub_topic_name | std::string | 音频智能帧发布话题 | 否       | 根据实际情况配置 | /audio_smart |
-| asr_pub_topic_name   | std::string | ASR结果发布话题    | 否       | 根据实际情况配置 | /audio_asr   |
-
+| asr_pub_topic_name   | std::string | ASR结果发布话题    | 否       | 根据实际情况配置 | /asr_text   |
+| asr_model   | std::string | ASR 模型名称, 更多模型从此下载 [sense-voice-gguf](https://huggingface.co/lovemefan/sense-voice-gguf) | 否       | 根据实际情况配置 | sense-voice-small-fp16.gguf |
+| language   | std::string | 支持语言类型    | 否       | 根据实际情况配置 | zh   |
+| push_wakeup   | int | 同时发布唤醒词话题    | 否       | 根据实际情况配置 | 0   |
+| wakeup_name   | std::string | 唤醒词设置    | 否       | 根据实际情况配置 | 你好 |
 
 cmd_word.json
 

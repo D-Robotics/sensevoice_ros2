@@ -77,7 +77,7 @@ struct sense_voice_params {
     bool flash_attn      = false;
     bool use_itn         = false;
 
-    std::string language  = "zh";
+    // std::string language  = "zh";
     std::string prompt;
     std::string model     = "models/ggml-base.en.bin";
 
@@ -99,7 +99,7 @@ class speech_engine {
     return engine;
   }
   ~speech_engine(){}
-  int Init(const std::string &cfg_path, const std::string &wakeup_name,
+  int Init(const std::string &cfg_path, const std::string &wakeup_name, const std::string &language,
           std::shared_ptr<std::vector<std::string>> v_cmd_word,
           AudioASRFunc asr_func, AudioCmdDataFunc cmd_func);
   int DeInit();

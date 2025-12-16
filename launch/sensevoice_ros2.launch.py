@@ -26,7 +26,7 @@ def generate_launch_description():
             description='audio capture id'),
         DeclareLaunchArgument(
             'asr_pub_topic_name',
-            default_value='/llamacpp_prompt',
+            default_value='/asr_text',
             description='hobot audio publish topic name'),
         DeclareLaunchArgument(
             'audio_asr_model',
@@ -40,6 +40,10 @@ def generate_launch_description():
             'wakeup_name',
             default_value='你好',
             description='wakeup name'),
+        DeclareLaunchArgument(
+            'language',
+            default_value='zh',
+            description='language type'),
         # 启动音频采集pkg
         Node(
             package='sensevoice_ros2',
@@ -48,6 +52,7 @@ def generate_launch_description():
             parameters=[
                 {"micphone_name": LaunchConfiguration('micphone_name')},
                 {"asr_model": LaunchConfiguration('audio_asr_model')},
+                {"language": LaunchConfiguration('language')},
                 {"push_wakeup": LaunchConfiguration('push_wakeup')},
                 {"wakeup_name": LaunchConfiguration('wakeup_name')},
                 {"asr_pub_topic_name": LaunchConfiguration(

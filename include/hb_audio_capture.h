@@ -76,6 +76,7 @@ class HBAudioCapture : public rclcpp::Node {
   int asr_output_channel_ = 3;
   int push_wakeup_ = 0;
 
+  std::string language_ = "en";
   std::string wakeup_name_ = "你好";
   std::string wakeup_name_1_ = "你好,";
   std::string config_path_ = "./config";
@@ -83,7 +84,7 @@ class HBAudioCapture : public rclcpp::Node {
   std::string asr_model_ = "sense-voice-small-fp16.gguf";
   std::string asr_model_path_ = "";
   std::string audio_pub_topic_name_ = "/audio_smart";
-  std::string asr_pub_topic_name_ = "/audio_asr";
+  std::string asr_pub_topic_name_ = "/asr_text";
   std::ofstream audio_infile_;
   std::ofstream audio_sdk_;
   bool save_audio_ = false;

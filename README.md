@@ -2,7 +2,7 @@ English| [简体中文](./README_cn.md)
 
 # Introduction
 
-D-Robotics Intelligent Voice Algorithm adopts local offline mode, subscribes to audio data for processing by BPU, and then publishes messages such as **command word **, and **Automatic Speech Recognition（ASR）**. The implementation of intelligent voice function corresponds to the **sensevoice_ros2** package of TogetheROS.Bot, which is suitable for the microphone array matched with the D-Robotics RDK.
+[SenseVoice2](https://github.com/lovemefan/SenseVoice.cpp) Algorithm adopts local offline mode, subscribes to audio data for processing by RDK, infer with [sensevoicegguf models](https://huggingface.co/lovemefan/sense-voice-gguf/tree/main) and then publishes messages such as **command word **, and **Automatic Speech Recognition（ASR）**. The implementation of intelligent voice function corresponds to the **sensevoice_ros2** package of TogetheROS.Bot, which is suitable for the microphone array matched with the D-Robotics RDK.
 
 After the intelligent voice sensevoice_ros2 package starts running, it will collect audio from the microphone array and send the collected audio data to the smart speech algorithm SDK module for intelligent processing. It outputs intelligent information such as wake-up events, command words, ASR results, etc. Wake-up events and command words are published as messages of type `audio_msg::msg::SmartAudioData`, and ASR results are published as messages of type `std_msgs::msg::String`.
 
@@ -13,18 +13,18 @@ After the intelligent voice sensevoice_ros2 package starts running, it will coll
 
 Before experiencing, you need to meet the following basic requirements:
 
-- D-Robotics RDK has installed the Ubuntu 20.04 system image provided by D-Robotics.
-- The audio board is correctly connected to RDK X3.
+- D-Robotics RDK has installed the Ubuntu 20.04/Ubuntu 22.04/Ubuntu 24.04 system image provided by D-Robotics.
+- The audio board is correctly connected to RDK X3, RDK X5, RDK S100, RDK S100P or RDK S600.
 
 
 ## Installation
 
-After starting RDK X3, connect to the robot via terminal SSH or VNC, copy and run the following commands on the RDK system to install related Nodes.
+After starting RDK, connect to the robot via terminal SSH or VNC, copy and run the following commands on the RDK system to install related Nodes.
 
 tros humble:
 ```bash
 sudo apt update
-sudo apt install -y tros-humble-hobot-audio
+sudo apt install -y tros-humble-sensevoice-ros2
 ```
 
 ## Execution
@@ -46,7 +46,7 @@ The intelligent voice function supports ASR recognition after denoising the orig
 
 The word in `cmd_word` is command words that users can configure as needed. It is recommended to use Chinese for command words, preferably words that are easy to pronounce and with a length of 3 to 5 characters.
 
-To run the hobot_audio package on the D-Robotics RDK board:
+To run the sensevoice_ros2 package on the D-Robotics RDK board:
 
 1. Configure the tros.b environment and start the application
 
@@ -56,7 +56,7 @@ To run the hobot_audio package on the D-Robotics RDK board:
     source /opt/tros/humble/setup.bash
 
     # Start the launch file
-    ros2 launch hobot_audio hobot_audio.launch.py
+    ros2 launch sensevoice_ros2 sensevoice_ros2.launch.py audio_asr_model:="sense-voice-small-fp16.gguf" language:="zh" micphone_name:="plughw:0,0"
     ```
 2. Result
 
@@ -103,19 +103,19 @@ To run the hobot_audio package on the D-Robotics RDK board:
     ```
 
 
-    The default topic name for intelligent voice messages published by hobot_audio is: */audio_smart*, and executing the `ros2 topic list` command in another terminal can query this topic information:
+    The default topic name for intelligent voice messages published by sensevoice_ros2 is: */audio_smart*, and executing the `ros2 topic list` command in another terminal can query this topic information:
 
     ```bash
     $ ros2 topic list
     /audio_smart
     ```
     
-    If ASR results publishing is enabled, the message topic published is: */audio_asr*, and the result of `ros2 topic list` is:
+    If ASR results publishing is enabled, the message topic published is: */asr_text*, and the result of `ros2 topic list` is:
 
     ```bash
     $ ros2 topic list
     /audio_smart
-    /audio_asr
+    /asr_text
     ```
 
 # Interface Description
@@ -125,7 +125,7 @@ To run the hobot_audio package on the D-Robotics RDK board:
 | Name         | Message Type                                                                                                            | Description                                           |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
 | /audio_smart | [audio_msg/msg/SmartAudioData](https://github.com/D-Robotics/hobot_msgs/blob/develop/audio_msg/msg/SmartAudioData.msg) | Publish data and results processed by smart audio      |
-| /audio_asr   | std_msgs/msg/String                                                                                                     | Publish ASR recognition results                        |
+| /asr_text   | std_msgs/msg/String | Publish ASR recognition results |
 
 ## Parameters
 
@@ -133,8 +133,11 @@ To run the hobot_audio package on the D-Robotics RDK board:
 | -------------------- | ----------- | ---------------------- | --------- | ----------------------- | ------------- |
 | micphone_name          | std::string | Audio Capture ID| No        | Configure according to the actual situation | plughw:0,0    |
 | audio_pub_topic_name | std::string | Audio smart frame publishing topic | No | Configure according to the actual situation | /audio_smart |
-| asr_pub_topic_name   | std::string | ASR result publishing topic | No      | Configure according to the actual situation | /audio_asr   |
-
+| asr_pub_topic_name   | std::string | ASR result publishing topic | No      | Configure according to the actual situation | /asr_text   |
+| asr_model   | std::string | ASR model name, more model see [sense-voice-gguf](https://huggingface.co/lovemefan/sense-voice-gguf)    | No | Configure according to the actual situation | sense-voice-small-fp16.gguf |
+| language   | std::string | The support language    | No | Configure according to the actual situation | zh   |
+| push_wakeup   | int | Pub topic     | No | Configure according to the actual situation | 0   |
+| wakeup_name   | std::string | Wakeup name | No | Configure according to the actual situation | 你好 |
 
 cmd_word.json
 

@@ -156,7 +156,7 @@ void sense_voice_free(struct sense_voice_context * ctx) {
 }
 
 
-int speech_engine::Init(const std::string &cfg_path, const std::string &wakeup_name,
+int speech_engine::Init(const std::string &cfg_path, const std::string &wakeup_name, const std::string &language,
                         std::shared_ptr<std::vector<std::string>> v_cmd_word,
                         AudioASRFunc asr_func, AudioCmdDataFunc cmd_func) {
   v_cmd_word_ = v_cmd_word;
@@ -187,12 +187,13 @@ int speech_engine::Init(const std::string &cfg_path, const std::string &wakeup_n
       return -1;
   }
 
-  ctx->language_id = sense_voice_lang_id(params.language.c_str());
+  // std::string language = "en";
+  ctx->language_id = sense_voice_lang_id(language.c_str());
   wparams = sense_voice_full_default_params(SENSE_VOICE_SAMPLING_GREEDY);
   wparams.strategy = (params.beam_size > 1 ) ? SENSE_VOICE_SAMPLING_BEAM_SEARCH : SENSE_VOICE_SAMPLING_GREEDY;
   wparams.print_progress   = params.print_progress;
   wparams.print_timestamps = !params.no_timestamps;
-  wparams.language         = params.language.c_str();
+  wparams.language         = language.c_str();
   wparams.n_threads        = params.n_threads;
   wparams.n_max_text_ctx   = params.max_context >= 0 ? params.max_context : wparams.n_max_text_ctx;
   wparams.offset_ms        = params.offset_t_ms;

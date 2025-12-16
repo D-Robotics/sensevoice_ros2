@@ -186,18 +186,6 @@ install(
   DESTINATION lib/${PROJECT_NAME}/model/
 )
 
-# Install model directories
-install(
-  FILES SenseVoiceGGUF/sense-voice-small-fp32.gguf
-  DESTINATION lib/${PROJECT_NAME}/model/
-)
-
-# Install model directories
-install(
-  FILES SenseVoiceGGUF/sense-voice-small-q4_k.gguf
-  DESTINATION lib/hobot_asr/model/
-)
-
 install(DIRECTORY
 ${PROJECT_SOURCE_DIR}/launch/
 DESTINATION share/${PROJECT_NAME}/launch)
