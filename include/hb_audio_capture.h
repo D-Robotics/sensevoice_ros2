@@ -76,7 +76,7 @@ class HBAudioCapture : public rclcpp::Node {
   int asr_output_channel_ = 3;
   int push_wakeup_ = 0;
 
-  std::string language_ = "en";
+  std::string language_ = "zh";
   std::string wakeup_name_ = "你好";
   std::string wakeup_name_1_ = "你好,";
   std::string config_path_ = "./config";
