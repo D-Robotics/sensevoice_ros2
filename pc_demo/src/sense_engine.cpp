@@ -130,14 +130,9 @@ void SenseEngine::SendData(const std::vector<int16_t>& samples) {
   queue_cv_.notify_one();
 }
 
-// 强制将当前已触发的语音段作为一次识别输出（用于离线文件末尾/结束时）
+// 强制将当前已触发的语音段作为一次识别输出（用于离线文件末尾）。
+// 必须在消费者线程已停止（队列已空）后调用，否则会死锁。
 void SenseEngine::Flush() {
-  // 先确保队列里的数据都被消费者处理完
-  {
-    std::unique_lock<std::mutex> lk(queue_mtx_);
-    queue_cv_.wait(lk, [this] { return queue_.empty(); });
-  }
-  // 若已有语音段在缓冲，强制断句识别
   if (vad_triggered_ && !vad_buf_.empty()) {
     int speech_ms = static_cast<int>(vad_buf_.size() * 1000.0 / cfg_.sample_rate);
     if (speech_ms >= 200) {
@@ -198,47 +193,67 @@ void SenseEngine::ProcessLoop() {
       for (int16_t s : pending) mono.push_back(s / 32768.0f);
     }
     if (mono.empty()) continue;
+    FeedFrame(mono);
+  }
+}
 
-    const float energy_th = 0.004f;   // 静音阈值（能量）提高，减少中间误断
-    const float zcr_th = 0.10f;       // 过零率阈值降低灵敏度
-    bool speech = EnergyZcrVad(mono, energy_th, zcr_th);
-    int frame_ms = static_cast<int>(mono.size() * 1000.0 / cfg_.sample_rate);
+// 处理一帧（已转单声道、归一化到 [-1,1] 的 float），执行 VAD + 断句识别
+void SenseEngine::FeedFrame(const std::vector<float>& mono) {
+  const float energy_th = 0.004f;   // 静音阈值（能量）提高，减少中间误断
+  const float zcr_th = 0.10f;       // 过零率阈值降低灵敏度
+  bool speech = EnergyZcrVad(mono, energy_th, zcr_th);
+  int frame_ms = static_cast<int>(mono.size() * 1000.0 / cfg_.sample_rate);
 
-    if (speech && !vad_triggered_) {
-      // 语音开始
-      vad_triggered_ = true;
-      silence_ms_ = 0;
-      vad_buf_.clear();
-      vad_buf_.insert(vad_buf_.end(), mono.begin(), mono.end());
-    } else if (speech && vad_triggered_) {
-      silence_ms_ = 0;
-      vad_buf_.insert(vad_buf_.end(), mono.begin(), mono.end());
-    } else if (!speech && vad_triggered_) {
-      // 静音累计，超阈值断句（min_silence_duration_ms=1200，避免连说被切开）
-      silence_ms_ += frame_ms;
-      vad_buf_.insert(vad_buf_.end(), mono.begin(), mono.end());
-      if (silence_ms_ > 1200) {
-        // 过滤过短片段（< 400ms 多为气口/噪声，识别无意义）
-        int speech_ms = static_cast<int>(vad_buf_.size() * 1000.0 / cfg_.sample_rate);
-        if (speech_ms < 400) {
-          ResetVad();
-        } else {
-          std::string text;
-          if (RunSenseVoice(vad_buf_, text)) {
-            if (cbs_.on_asr) cbs_.on_asr(text);
-            if (cbs_.on_cmd) {
-              std::string cmd = "NONE";
-              for (const auto& w : cmd_words_) {
-                if (text.find(w) != std::string::npos) { cmd = w; break; }
-              }
-              cbs_.on_cmd(cmd);
+  if (speech && !vad_triggered_) {
+    // 语音开始
+    vad_triggered_ = true;
+    silence_ms_ = 0;
+    vad_buf_.clear();
+    vad_buf_.insert(vad_buf_.end(), mono.begin(), mono.end());
+  } else if (speech && vad_triggered_) {
+    silence_ms_ = 0;
+    vad_buf_.insert(vad_buf_.end(), mono.begin(), mono.end());
+  } else if (!speech && vad_triggered_) {
+    // 静音累计，超阈值断句（min_silence_duration_ms=1200，避免连说被切开）
+    silence_ms_ += frame_ms;
+    vad_buf_.insert(vad_buf_.end(), mono.begin(), mono.end());
+    if (silence_ms_ > 1200) {
+      // 过滤过短片段（< 400ms 多为气口/噪声，识别无意义）
+      int speech_ms = static_cast<int>(vad_buf_.size() * 1000.0 / cfg_.sample_rate);
+      if (speech_ms < 400) {
+        ResetVad();
+      } else {
+        std::string text;
+        if (RunSenseVoice(vad_buf_, text)) {
+          if (cbs_.on_asr) cbs_.on_asr(text);
+          if (cbs_.on_cmd) {
+            std::string cmd = "NONE";
+            for (const auto& w : cmd_words_) {
+              if (text.find(w) != std::string::npos) { cmd = w; break; }
             }
+            cbs_.on_cmd(cmd);
           }
-          ResetVad();
         }
+        ResetVad();
       }
     }
   }
+}
+
+// 离线文件模式：同步处理整段 PCM（单声道 16k），逐帧 VAD + 断句识别
+void SenseEngine::ProcessFile(const std::vector<int16_t>& pcm) {
+  const size_t chunk = 512;
+  std::vector<float> mono;
+  mono.reserve(chunk);
+  for (size_t off = 0; off < pcm.size(); off += chunk) {
+    size_t n = std::min(chunk, pcm.size() - off);
+    mono.clear();
+    for (size_t i = 0; i < n; ++i) mono.push_back(pcm[off + i] / 32768.0f);
+    FeedFrame(mono);
+  }
+  // 末尾补约 2 秒静音，强制末次断句
+  mono.assign(chunk, 0.0f);
+  for (int i = 0; i < 64; ++i) FeedFrame(mono);
 }
 
 // 对应 speech_engine 中 sense_voice_full_parallel 之后的文本提取 + 唤醒词剥离

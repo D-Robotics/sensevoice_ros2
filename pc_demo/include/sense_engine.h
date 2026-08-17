@@ -45,6 +45,8 @@ class SenseEngine {
 
   // 生产者：喂入一帧 PCM（16bit，单声道，-32768..32767）。等效 speech_engine::send_data
   void SendData(const std::vector<int16_t>& samples);
+  // 离线文件模式：同步处理整段音频（不走异步队列），直接断句+识别
+  void ProcessFile(const std::vector<int16_t>& pcm);
   // 强制输出当前已触发的语音段（离线文件末尾/进程退出前调用）
   void Flush();
 
@@ -52,6 +54,7 @@ class SenseEngine {
 
  private:
   void ProcessLoop();          // 消费者线程，等效 speech_engine::process()
+  void FeedFrame(const std::vector<float>& mono);  // 处理一帧（VAD+断句）
   void ResetVad();             // 等效 vad_reset_state()
   bool RunSenseVoice(const std::vector<float>& audio, std::string& text);  // 等效 sense_voice_run()
   std::vector<std::string> LoadCmdWords();  // 读取 cmd_word.json

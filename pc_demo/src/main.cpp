@@ -206,7 +206,7 @@ int main(int argc, char** argv) {
   size_t frames = 0;
 
   if (!opt.file.empty()) {
-    // ---- 离线文件模式：读 WAV，分帧模拟实时流 ----
+    // ---- 离线文件模式：读 WAV，同步处理（不走异步队列）----
     std::vector<int16_t> pcm;
     if (!ReadWavToMono16k(opt.file, pcm, opt.rate)) {
       return 4;
@@ -214,15 +214,7 @@ int main(int argc, char** argv) {
     std::printf("[main] file mode: %s, %zu samples (%.1fs @%d)\n",
                 opt.file.c_str(), pcm.size(),
                 pcm.size() / static_cast<double>(opt.rate), opt.rate);
-    const size_t chunk = 512;  // 与 mic 帧大小一致
-    for (size_t off = 0; off < pcm.size(); off += chunk) {
-      if (g_stop) break;
-      size_t n = std::min(chunk, pcm.size() - off);
-      buf.assign(pcm.begin() + off, pcm.begin() + off + n);
-      engine.SendData(buf);
-    }
-    // 强制输出最后一段语音（不依赖静音断句）
-    engine.Flush();
+    engine.ProcessFile(pcm);   // 同步断句+识别，直接回调 [ASR]/[CMD]
     std::printf("[main] file consumed\n");
   } else {
     // ---- 实时麦克风模式 ----

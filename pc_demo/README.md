@@ -113,8 +113,8 @@ cd pc_demo
   --wakeword 你好 --lang zh --cmd-config config/cmd_word.json
 ```
 
-> WAV 支持：16-bit PCM，自动重采样/转单声道到 16kHz；文件尾自动补静音以触发末次断句识别。
-> 没有麦克风时，也可用 ALSA `plug` 插件喂 WAV，或用 `arecord -f cd -t wav | ./... ` 管道方式（demo 未支持，可自行扩展）。
+> WAV 支持：16-bit PCM，自动重采样/转单声道到 16kHz；文件模式为**同步处理**（逐帧 VAD 断句 + 识别，不走异步队列），末尾自动补约 2 秒静音以触发末次断句识别。
+> 此模式用于无麦克风/可复现的自动化测试，验证「读取→VAD→识别→指令匹配」整条链路。
 
 ## 使用流程（同原仓库）
 
@@ -186,5 +186,55 @@ sense_voice_init_state: ...
 | 引擎初始化 + 指令词配置（7 条）解析 | ✅ |
 | 程序正常退出（无崩溃） | ✅ |
 | 实时麦克风识别 | ⚠️ 需原生 Ubuntu + 真实麦克风（WSL2 音频不通） |
+| 离线文件模式（--file）全链路识别 | ✅ 见下 |
+
+### 离线文件模式验证（2026-08-17 追加）
+
+用 SenseVoice 官方示例 `zh.mp3`（ffmpeg 转 16k 单声道 WAV = `test_zh.wav`，5.6s）跑 `--file` 模式：
+
+```text
+$ ./build/bin/sensevoice_pc_demo \
+    --model /mnt/d/work/github/SenseVoice.cpp/models/sense-voice-small-fp16.gguf \
+    --file test_zh.wav --wakeword 你好 --lang zh --cmd-config config/cmd_word.json
+
+[sense_engine] init ok: model=... lang=zh wakeword=你好 cmds=7
+[main] file mode: test_zh.wav, 89856 samples (5.6s @16000)
+[ASR] 开放时间早上9点至下午5点。
+[CMD] NONE
+[main] file consumed
+[main] bye
+```
+
+验证结论：
+- WAV 读取 + 重采样到 16k ✅
+- VAD 断句 + SenseVoice 整段识别 ✅（`[ASR]` 输出与音频内容一致）
+- 指令词匹配回调 ✅（`[CMD] NONE` 因示例音频不含"打开"等指令词，符合预期）
+
+> 说明：文件模式（同步 `ProcessFile`）用于无麦克风/可复现测试；实时麦克风模式（异步队列 + `ProcessLoop`）用于真实拾音。`test_zh.wav` 通过 `ffmpeg -i zh.mp3 -ar 16000 -ac 1 -c:a pcm_s16le test_zh.wav` 生成。
+
+### 离线文件模式验证 2（2026-08-17 追加）
+
+用 `d4dfdfbc-149a-437f-9f3d-048e17c0e092.mp3`（ffmpeg 转 16k 单声道 WAV = `d4dfdfbc-test.wav`，2.0s）跑 `--file` 模式：
+
+```text
+$ ./build/bin/sensevoice_pc_demo \
+    --model /home/shulu/SenseVoice.cpp/SenseVoice.cpp/models/sense-voice-small-fp16.gguf \
+    --file /mnt/d/work/github/sensevoice_ros2/pc_demo/d4dfdfbc-test.wav \
+    --cmd-config config/cmd_word.json
+
+[sense_engine] init ok: model=... lang=zh wakeword=你好 cmds=7
+[main] file mode: d4dfdfbc-test.wav, 32640 samples (2.0s @16000)
+[ASR] ，打开灯。
+[CMD] 打开
+[main] file consumed
+[main] bye
+```
+
+验证结论：
+- 含指令词的真实语音被正确识别：`[ASR] ，打开灯。` ✅
+- 指令词匹配命中：`[CMD] 打开`（命中 `cmd_word.json` 中"打开"前缀）✅
+- 链路（读取→重采样→VAD 断句→识别→指令匹配回调）完整跑通，EXIT=0 ✅
+
+> `d4dfdfbc-test.wav` 通过 `ffmpeg -i d4dfdfbc-149a-437f-9f3d-048e17c0e092.mp3 -ar 16000 -ac 1 -c:a pcm_s16le d4dfdfbc-test.wav` 生成。
 
 > 实时识别建议在**原生 Ubuntu 22.04 物理机**上运行，将 `--device` 指向真实 ALSA 设备（如 `plughw:0,0`）。可用 `arecord -l` 查看设备名。
