@@ -4,6 +4,7 @@
 
 #include "tts_engine.h"
 
+#include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <stdexcept>
@@ -14,10 +15,10 @@ namespace sensevoice_pc {
 
 namespace {
 
-// 执行一条命令并等待完成，返回 exit code。stdout 被丢弃，stderr 透传。
+// 执行一条命令并等待完成，返回 exit code。
+// 不再吞掉 stderr，TTS 合成/播放的错误直接透出，方便在终端排查。
 int RunCmd(const std::string& cmd) {
-  std::string full = cmd + " 2>/dev/null";
-  return std::system(full.c_str());
+  return std::system(cmd.c_str());
 }
 
 // 极简 Shell 转义：把单引号转义，整体用单引号包裹，避免文本里的特殊字符
@@ -62,8 +63,26 @@ bool TtsEngine::Start() {
   return true;
 }
 
+bool TtsEngine::IsContentLess(const std::string& text) {
+  // 判断文本是否"无实际语义内容"（仅空白 + 标点），避免对识别出的
+  // "。" 这类结果做无意义合成/播放。
+  // 注意：std::ispunct 只覆盖 ASCII 标点，对中文标点(。，、！？)不可靠，
+  // 因此这里显式列出常见中文标点，逐字符判定。
+  static const std::string cjk_punct = "。，、；：！？“”‘’（）《》〈〉【】…—·";
+  for (char raw : text) {
+    unsigned char c = static_cast<unsigned char>(raw);
+    if (std::isspace(c)) continue;
+    if (c < 0x80 && std::ispunct(c)) continue;          // ASCII 标点
+    bool is_cjk_punct = false;
+    for (char p : cjk_punct) if (raw == p) { is_cjk_punct = true; break; }
+    if (is_cjk_punct) continue;
+    return false;  // 遇到非空白非标点的字符 -> 有内容
+  }
+  return true;  // 全是空白/标点或无字符
+}
+
 void TtsEngine::Speak(const std::string& text) {
-  if (text.empty()) return;
+  if (text.empty() || IsContentLess(text)) return;
   {
     std::lock_guard<std::mutex> lock(mtx_);
     q_.push(text);

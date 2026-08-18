@@ -45,6 +45,8 @@ class TtsEngine {
   void Stop();
 
  private:
+  // 判断文本是否仅含空白/标点（无实际语义内容），用于过滤无意义播报。
+  static bool IsContentLess(const std::string& text);
   void Worker();
   bool Synthesize(const std::string& text, std::string& wav_path);
   bool PlayWav(const std::string& wav_path);

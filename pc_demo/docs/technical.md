@@ -360,7 +360,7 @@ chunk 遍历容错（跳过 `fmt` 扩展字节、未知 chunk）。
 1. **无 ROS2**：仅打印文本，无话题发布。如需接入 ROS2，可在 `main.cpp` 的回调里加 `rclcpp` 发布。
 2. **VAD 较简单**：能量 + 过零率断句精度逊于 Silero-VAD。如需更准，可集成上游 `silero_vad.onnx`（onnxruntime）。
 3. **子进程调用 TTS**：`std::system` 调用 `espeak-ng`/`piper` 有进程启动开销，高频播报可考虑直接链接其库 API。
-4. **实时麦克风需原生环境**：WSL2 下音频采集/播放不畅，建议物理机 Ubuntu 运行；WSL2 仅验证文件模式与 TTS 播放。
+4. **WSLg 播放依赖 RDP**：WSL2 下麦克风（`RDPSource`，即 Windows 物理麦克风桥接）已实测可用，本地终端即可拾音识别；但扬声器（`RDPSink`）仅在 RDP 远程桌面会话激活时才有输出，纯本地终端下为 `SUSPENDED`，听不到 TTS 播报（识别/合成仍正常）。详见 `README.md` 第 5.1 节。
 5. **指令词为子串匹配**：无法处理歧义或多词组合，复杂场景需改成正则/语义匹配。
 6. **`RunSenseVoice` 用 `sense_voice_full_parallel`**：大模型时该并行接口可提速；小模型用 `sense_voice_full` 亦可。
 
@@ -372,9 +372,10 @@ chunk 遍历容错（跳过 `fmt` 扩展字节、未知 chunk）。
 |---|---|---|
 | x86_64 编译（上游 + demo） | WSL2 Ubuntu 22.04 | ✅ |
 | ASR 模型加载（448MB gguf，50 层 encoder） | WSL2 | ✅ |
-| 指令词解析（6 条） | — | ✅ |
+| 指令词解析（8 条） | — | ✅ |
 | 离线文件全链路（识别 + 指令命中） | WSL2 | ✅（见 README 示例） |
 | TTS espeak-ng 播放 | WSL2 + WSLg/paplay | ✅ |
 | TTS Piper 播放（ModelScope 模型） | WSL2 + WSLg/paplay | ✅ |
-| 实时麦克风拾音 | WSL2 | ⚠️ 需原生 Ubuntu + 真实声卡 |
+| 实时麦克风拾音（RDPSource） | WSL2 + Windows 麦克风 | ✅（需 RDP 连入才能听到播报） |
 | 程序优雅退出 | — | ✅ |
+| 纯标点过滤不误触发 TTS | WSL2 | ✅（已修复 `IsContentLess`） |
