@@ -49,6 +49,7 @@ add_executable(sensevoice_pc_demo
   src/main.cpp
   src/alsa_audio.cpp
   src/sense_engine.cpp
+  src/tts_engine.cpp
 )
 
 target_include_directories(sensevoice_pc_demo PRIVATE

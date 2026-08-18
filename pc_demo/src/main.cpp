@@ -19,6 +19,7 @@
 
 #include "alsa_audio.h"
 #include "sense_engine.h"
+#include "tts_engine.h"
 
 using namespace sensevoice_pc;
 
@@ -35,6 +36,13 @@ struct Options {
   int threads = 4;
   int channels = 2;   // 原仓库默认采集 2 声道，引擎内降混
   int rate = 16000;
+  // TTS（语音合成播放）选项；默认关闭，加 --speak 启用
+  bool speak = false;
+  std::string tts_engine = "espeak";   // espeak | piper
+  std::string piper_dir;               // piper/espeak-ng 可执行与数据目录
+  std::string piper_model;             // Piper 的 .onnx 模型路径
+  std::string tts_voice = "zh";        // espeak-ng 的 -v 参数
+  int tts_rate = 175;                  // espeak-ng 语速
 };
 
 // 读取 16-bit PCM WAV，重采样/转单声道到 16k，返回 int16 采样序列。
@@ -136,6 +144,12 @@ static void PrintUsage(const char* prog) {
       "  --threads <n>         inference threads, default 4\n"
       "  --channels <1|2>      mic channels, default 2\n"
       "  --rate <hz>           sample rate, default 16000\n"
+      "  --speak              enable TTS playback (off by default)\n"
+      "  --tts-engine <e>     espeak | piper, default espeak\n"
+      "  --piper-dir <dir>    dir with piper/espeak-ng binaries + espeak-ng-data\n"
+      "  --piper-model <m>    Piper .onnx model path (required if --tts-engine piper)\n"
+      "  --tts-voice <v>      espeak-ng -v voice, default zh\n"
+      "  --tts-rate <n>       espeak-ng speed, default 175\n"
       "  -h, --help            show this help\n",
       prog);
 }
@@ -159,6 +173,12 @@ static bool ParseArgs(int argc, char** argv, Options& opt) {
     else if (a == "--threads") opt.threads = std::atoi(next("--threads"));
     else if (a == "--channels") opt.channels = std::atoi(next("--channels"));
     else if (a == "--rate") opt.rate = std::atoi(next("--rate"));
+    else if (a == "--speak") opt.speak = true;
+    else if (a == "--tts-engine") opt.tts_engine = next("--tts-engine");
+    else if (a == "--piper-dir") opt.piper_dir = next("--piper-dir");
+    else if (a == "--piper-model") opt.piper_model = next("--piper-model");
+    else if (a == "--tts-voice") opt.tts_voice = next("--tts-voice");
+    else if (a == "--tts-rate") opt.tts_rate = std::atoi(next("--tts-rate"));
     else if (a == "-h" || a == "--help") { PrintUsage(argv[0]); std::exit(0); }
     else { std::fprintf(stderr, "unknown option: %s\n", a.c_str()); return false; }
   }
@@ -187,14 +207,34 @@ int main(int argc, char** argv) {
   ecfg.sample_rate = opt.rate;
 
   SenseEngine engine(ecfg);
+
+  // ---- 可选 TTS：把识别/指令文本合成语音播放 ----
+  std::unique_ptr<TtsEngine> tts;
+  if (opt.speak) {
+    TtsEngine::Config tcfg;
+    tcfg.engine = opt.tts_engine;
+    tcfg.piper_dir = opt.piper_dir;
+    tcfg.piper_model = opt.piper_model;
+    tcfg.voice = opt.tts_voice;
+    tcfg.rate = opt.tts_rate;
+    tts.reset(new TtsEngine(tcfg));
+    if (!tts->Start()) {
+      std::fprintf(stderr, "[main] TTS start failed (playback disabled)\n");
+    } else {
+      std::printf("[main] TTS enabled: engine=%s\n", opt.tts_engine.c_str());
+    }
+  }
+
   bool init_ok = engine.Init({
-      [](const std::string& text) {
+      [&tts](const std::string& text) {
         std::printf("\n[ASR] %s\n", text.c_str());
         std::fflush(stdout);
+        if (tts) tts->Speak(text);
       },
-      [](const std::string& cmd) {
+      [&tts](const std::string& cmd) {
         std::printf("[CMD] %s\n", cmd.c_str());
         std::fflush(stdout);
+        if (tts && !cmd.empty() && cmd != "NONE") tts->Speak("收到指令：" + cmd);
       },
   });
   if (!init_ok) {
@@ -233,6 +273,7 @@ int main(int argc, char** argv) {
   }
 
   engine.Stop();
+  if (tts) { tts->Drain(); tts->Stop(); }
   std::printf("\n[main] bye\n");
   return 0;
 }
